@@ -7,12 +7,12 @@ from job_scraper.scrapers.base import BaseScraper
 API_URL = "https://www.104.com.tw/jobs/search/api/jobs"
 SEARCH_QUERIES = [
     "data engineer",
-    "backend engineer remote",
-    "Spark Python",
-    "SRE engineer",
-    "DevOps engineer remote",
-    "Python 後端",
     "資料工程師",
+    "數據工程師",
+    "analytics engineer",
+    "Databricks",
+    "data pipeline",
+    "ETL engineer",
 ]
 
 

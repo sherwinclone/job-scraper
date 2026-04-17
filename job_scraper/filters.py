@@ -4,10 +4,10 @@ from job_scraper.models import Job
 
 ROLE_KEYWORDS = [
     "data engineer", "analytics engineer", "data platform",
-    "backend engineer", "backend developer", "python developer",
-    "platform engineer", "site reliability", "sre",
-    "etl", "databricks", "spark", "airflow",
-    "data infrastructure", "data ops", "python",
+    "data scientist", "data analyst", "data infrastructure",
+    "data ops", "dataops", "databricks", "spark",
+    "etl", "airflow", "data pipeline", "data warehouse",
+    "資料工程", "數據工程", "資料分析",
 ]
 
 TIMEZONE_INCLUDE = [
@@ -22,11 +22,17 @@ TIMEZONE_EXCLUDE = [
     "eu only", "europe only", "uk only",
 ]
 
-# Exclude junior/intern/low-level titles
+# Exclude junior/intern/low-level/unrelated titles
 TITLE_EXCLUDE = [
     "junior", "intern", "實習", "講師", "助理", "assistant",
     "manager", "director", "vp ", "vice president", "head of",
     "主管", "經理", "總監",
+    "unpaid", "volunteer", "志工",
+    "accelerator program",
+    "designer", "設計師",
+    "react developer", "frontend", "前端",
+    "接案", "約聘", "兼職", "part-time", "freelance",
+    "online data analyst",  # usually crowd-sourcing gigs
 ]
 
 # Min salary: $150K USD for international, 150萬 TWD for 104

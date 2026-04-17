@@ -1,0 +1,36 @@
+name: Daily Job Scrape
+
+on:
+  schedule:
+    # 每天台灣時間早上 9 點跑 (UTC+8 → UTC 01:00)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # 手動觸發
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install httpx beautifulsoup4 typer
+
+      - name: Restore DB cache
+        uses: actions/cache@v4
+        with:
+          path: data/jobs.db
+          key: jobs-db-${{ github.run_number }}
+          restore-keys: |
+            jobs-db-
+
+      - name: Scrape and notify
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          mkdir -p data
+          python -m job_scraper scrape --notify
