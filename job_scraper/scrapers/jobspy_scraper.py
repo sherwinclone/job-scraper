@@ -37,7 +37,7 @@ class JobSpyScraper(BaseScraper):
             for location in SEARCH_LOCATIONS:
                 try:
                     results = scrape_jobs(
-                        site_name=["linkedin", "indeed", "glassdoor"],
+                        site_name=["indeed"],
                         search_term=query,
                         location=location,
                         results_wanted=20,
