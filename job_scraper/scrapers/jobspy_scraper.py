@@ -61,7 +61,7 @@ class JobSpyScraper(BaseScraper):
 
     def _row_to_job(self, row) -> Job | None:
         title = str(row.get("title", ""))
-        company = str(row.get("company_name", ""))
+        company = str(row.get("company", ""))
         if not title or not company:
             return None
 
