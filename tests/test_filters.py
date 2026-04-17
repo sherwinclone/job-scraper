@@ -14,8 +14,8 @@ class TestMatchesRole:
     def test_data_engineer_title(self):
         assert matches_role(_job("Senior Data Engineer"))
 
-    def test_backend_engineer_title(self):
-        assert matches_role(_job("Backend Engineer - Python"))
+    def test_data_platform_title(self):
+        assert matches_role(_job("Data Platform Engineer"))
 
     def test_irrelevant_title(self):
         assert not matches_role(_job("Marketing Manager"))
@@ -64,10 +64,10 @@ class TestFilterJobs:
         jobs = [
             _job("Data Engineer", location="Worldwide"),
             _job("Marketing Manager", location="Worldwide"),
-            _job("Backend Developer", location="US Only"),
-            _job("Python Developer", location="Asia"),
+            _job("Analytics Engineer", location="US Only"),
+            _job("Data Platform Engineer", location="Asia"),
         ]
         result = filter_jobs(jobs)
         assert len(result) == 2
         assert result[0].title == "Data Engineer"
-        assert result[1].title == "Python Developer"
+        assert result[1].title == "Data Platform Engineer"
