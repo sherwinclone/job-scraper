@@ -33,25 +33,31 @@ class JobSpyScraper(BaseScraper):
         seen_ids = set()
         all_jobs = []
 
-        for query in SEARCH_QUERIES:
-            for location in SEARCH_LOCATIONS:
-                try:
-                    results = scrape_jobs(
-                        site_name=["indeed"],
-                        search_term=query,
-                        location=location,
-                        results_wanted=20,
-                        is_remote=True,
-                        country_indeed="singapore",
-                    )
-                    for _, row in results.iterrows():
-                        job = self._row_to_job(row)
-                        if job and job.id not in seen_ids:
-                            seen_ids.add(job.id)
-                            all_jobs.append(job)
-                except Exception as e:
-                    print(f"[jobspy] Error searching '{query}' in {location}: {e}", file=sys.stderr)
-                    continue
+        # Run each site separately so one failure doesn't block others
+        sites = ["indeed", "linkedin", "glassdoor"]
+
+        for site in sites:
+            for query in SEARCH_QUERIES:
+                for location in SEARCH_LOCATIONS:
+                    try:
+                        results = scrape_jobs(
+                            site_name=[site],
+                            search_term=query,
+                            location=location,
+                            results_wanted=20,
+                            is_remote=True,
+                            country_indeed="singapore",
+                        )
+                        for _, row in results.iterrows():
+                            job = self._row_to_job(row)
+                            if job and job.id not in seen_ids:
+                                seen_ids.add(job.id)
+                                all_jobs.append(job)
+                    except Exception as e:
+                        # Rate limited or blocked — skip this combo, continue others
+                        print(f"[jobspy:{site}] '{query}' in {location}: {e}", file=sys.stderr)
+                        continue
+            print(f"  [jobspy:{site}] collected {len(all_jobs)} jobs so far", file=sys.stderr)
 
         return all_jobs
 
