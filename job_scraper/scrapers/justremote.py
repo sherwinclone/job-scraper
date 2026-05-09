@@ -8,13 +8,10 @@ from job_scraper.models import Job
 from job_scraper.scrapers.base import BaseScraper
 
 BASE_URL = "https://justremote.co"
-# The advertised "/feed" URL actually returns the React SPA; the real RSS no
-# longer exists. The category landing pages, however, ship the full job list
-# in window.__PRELOADED_STATE__, which we extract here.
-CATEGORY_PATHS = [
-    "/remote-developer-jobs",
-    "/remote-devops-sysadmin-jobs",
-]
+# The SPA returns ALL jobs regardless of which category URL we hit, so one
+# fetch is enough. The category field in the response is unreliable
+# (e.g. "Senior Data Engineer" tagged as "manager") so we don't store it.
+LANDING_PATH = "/remote-developer-jobs"
 STATE_RE = re.compile(r"window\.__PRELOADED_STATE__\s*=\s*(.*?)</script>", re.S)
 
 
@@ -27,22 +24,24 @@ class JustRemoteScraper(BaseScraper):
             timeout=30.0,
             follow_redirects=True,
         )
-        all_jobs: list[Job] = []
-        seen: set[str] = set()
-        for path in CATEGORY_PATHS:
-            try:
-                resp = client.get(f"{BASE_URL}{path}")
-                resp.raise_for_status()
-            except Exception as e:
-                print(f"  [justremote] fetch {path} failed: {e}", file=sys.stderr)
-                continue
-            for job in self.parse(resp.text):
-                if job.id in seen:
-                    continue
-                seen.add(job.id)
-                all_jobs.append(job)
+        try:
+            resp = client.get(f"{BASE_URL}{LANDING_PATH}")
+            resp.raise_for_status()
+            jobs = self.parse(resp.text)
+        except Exception as e:
+            print(f"  [justremote] fetch failed: {e}", file=sys.stderr)
+            jobs = []
         client.close()
-        return all_jobs
+        # Dedup by (title, company) — same job sometimes appears with multiple slugs.
+        seen: set[tuple[str, str]] = set()
+        unique: list[Job] = []
+        for j in jobs:
+            key = (j.title.strip().lower(), j.company.strip().lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(j)
+        return unique
 
     def parse(self, html: str) -> list[Job]:
         m = STATE_RE.search(html)
@@ -70,7 +69,7 @@ class JustRemoteScraper(BaseScraper):
                 title=entry.get("title", ""),
                 company=entry.get("company_name", ""),
                 url=url,
-                tags=[t for t in [entry.get("category"), entry.get("job_type")] if t],
+                tags=[entry["job_type"]] if entry.get("job_type") else [],
                 salary=None,
                 location=" | ".join(location_bits) or None,
                 posted_at=str(entry.get("date") or "") or None,

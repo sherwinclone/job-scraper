@@ -2,6 +2,36 @@ import re
 
 from job_scraper.models import Job
 
+# Country/region tokens used to detect "country-locked remote" patterns
+# (e.g. "Japan - Remote", "Remote (Europe)") — those indicate the job is
+# only open to candidates in that country/region.
+_COUNTRY_TOKENS = (
+    "europe", "asia", "apac", "latam", "emea", "americas",
+    "north america", "south america",
+    "usa", "uk", "canada", "australia", "new zealand", "anz",
+    "japan", "singapore", "hong kong", "korea", "china",
+    "germany", "france", "spain", "italy", "netherlands", "ireland", "portugal",
+    "brazil", "india", "mexico", "argentina", "chile",
+    "philippines", "indonesia", "malaysia", "thailand", "vietnam",
+)
+_COUNTRY_RE_FRAG = "|".join(re.escape(c) for c in _COUNTRY_TOKENS)
+# "<Country> - Remote" / "<Country>-Remote"
+_COUNTRY_PREFIX_REMOTE_RE = re.compile(
+    rf"\b(?:{_COUNTRY_RE_FRAG})\s*-\s*remote\b",
+    re.IGNORECASE,
+)
+# "Remote (Europe)" — region in parens, no commas inside (excludes
+# "Remote friendly (Denver, Colorado, United States)" because of the commas).
+_REMOTE_REGION_PARENS_RE = re.compile(
+    rf"remote\s*[\(\[][^,)\]]*?(?:{_COUNTRY_RE_FRAG})[^,)\]]*?[\)\]]",
+    re.IGNORECASE,
+)
+# "Remote in Germany" / "Remote from Asia"
+_REMOTE_IN_REGION_RE = re.compile(
+    rf"\bremote\s+(?:in|from)\s+(?:{_COUNTRY_RE_FRAG})\b",
+    re.IGNORECASE,
+)
+
 ROLE_KEYWORDS = [
     "data engineer", "analytics engineer", "data platform",
     "data scientist", "data analyst", "data infrastructure",
@@ -63,7 +93,7 @@ def matches_remote(job: Job) -> bool:
     """Accept fully-remote (worldwide) jobs and Taiwan-only jobs.
 
     Rejects region-locked listings (US-only, EU-only, etc. except Taiwan),
-    hybrid, and on-site listings.
+    "Country - Remote" / "Remote (Region)" patterns, hybrid, and on-site.
     """
     loc = (job.location or "").lower().strip()
     if not loc:
@@ -71,6 +101,13 @@ def matches_remote(job: Job) -> bool:
         return True
     # Hard rejects: any explicit lock or non-remote signal.
     if any(ex in loc for ex in LOCATION_EXCLUDE):
+        return False
+    # Country-locked remote patterns (e.g. "Japan - Remote", "Remote (Europe)").
+    if _COUNTRY_PREFIX_REMOTE_RE.search(loc):
+        return False
+    if _REMOTE_REGION_PARENS_RE.search(loc):
+        return False
+    if _REMOTE_IN_REGION_RE.search(loc):
         return False
     # Taiwan-only is allowed (Sherwin is local).
     if any(tw in loc for tw in TAIWAN_ONLY):

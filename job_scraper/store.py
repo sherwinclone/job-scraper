@@ -43,8 +43,25 @@ class Store:
         conn.close()
         return row is not None
 
+    def job_exists_by_canonical(self, platform: str, title: str, company: str) -> bool:
+        """Catch same-job-different-ID — e.g. JustRemote serves the same posting
+        with and without a UUID suffix in the slug, producing two distinct ids."""
+        if not title or not company:
+            return False
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT 1 FROM jobs "
+            "WHERE platform = ? AND lower(trim(title)) = lower(trim(?)) "
+            "AND lower(trim(company)) = lower(trim(?))",
+            (platform, title, company),
+        ).fetchone()
+        conn.close()
+        return row is not None
+
     def save_job(self, job: Job) -> bool:
         if self.job_exists(job.id):
+            return False
+        if self.job_exists_by_canonical(job.platform, job.title, job.company):
             return False
         now = datetime.now(timezone.utc).isoformat()
         conn = self._connect()

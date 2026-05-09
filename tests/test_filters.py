@@ -103,6 +103,32 @@ class TestMatchesRemote:
     def test_in_office_rejected(self):
         assert not matches_remote(_job(location="In office, Berlin"))
 
+    # Country-locked remote patterns rejected
+    def test_japan_dash_remote_rejected(self):
+        assert not matches_remote(_job(location="Japan - Remote"))
+
+    def test_germany_dash_remote_rejected(self):
+        assert not matches_remote(_job(location="Germany-Remote"))
+
+    def test_remote_europe_parens_rejected(self):
+        assert not matches_remote(_job(location="Remote (Europe)"))
+
+    def test_remote_asia_parens_rejected(self):
+        assert not matches_remote(_job(location="Remote (Asia)"))
+
+    def test_remote_in_germany_rejected(self):
+        assert not matches_remote(_job(location="Remote in Germany"))
+
+    def test_remote_from_japan_rejected(self):
+        assert not matches_remote(_job(location="Remote from Japan"))
+
+    # Remote-friendly with city/state/country in parens (commas inside) → still accepted
+    def test_remote_friendly_with_full_address_accepted(self):
+        # bet365-style listing — Sherwin found this useful
+        assert matches_remote(_job(
+            location="Remote friendly (Denver, Colorado, United States) | United States"
+        ))
+
 
 class TestFilterJobs:
     def test_filters_combined(self):

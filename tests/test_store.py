@@ -2,7 +2,11 @@ from job_scraper.models import Job
 from job_scraper.store import Store
 
 
-def _job(id="test:1", title="Data Engineer", company="TestCo"):
+def _job(id="test:1", title=None, company="TestCo"):
+    # Title defaults to a unique value per id so canonical dedup
+    # (platform + title + company) doesn't collapse separate test rows.
+    if title is None:
+        title = f"Data Engineer {id}"
     return Job(
         id=id, platform="test", title=title, company=company,
         url="https://example.com", tags=["python", "spark"],
@@ -62,3 +66,17 @@ class TestStore:
         store.save_jobs([_job("t:1"), _job("t:2")])
         recent = store.get_recent_jobs(days=7)
         assert len(recent) == 2
+
+    def test_skip_duplicate_canonical(self, tmp_path):
+        """Same title+company under different IDs (e.g. JustRemote serves
+        the same job with and without a UUID slug) should dedup."""
+        store = Store(tmp_path / "test.db")
+        store.save_job(_job("t:1", title="Senior Data Engineer", company="Foodsmart"))
+        store.save_job(_job("t:2", title="Senior Data Engineer", company="Foodsmart"))
+        assert store.get_stats()["total_jobs"] == 1
+
+    def test_canonical_dedup_skips_whitespace(self, tmp_path):
+        store = Store(tmp_path / "test.db")
+        store.save_job(_job("t:1", title="Senior Data Engineer", company="Foodsmart"))
+        store.save_job(_job("t:2", title="  Senior Data Engineer  ", company="foodsmart"))
+        assert store.get_stats()["total_jobs"] == 1
