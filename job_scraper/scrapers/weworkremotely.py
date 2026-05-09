@@ -7,6 +7,9 @@ BASE_URL = "https://weworkremotely.com"
 CATEGORIES = [
     "/categories/remote-back-end-programming-jobs",
     "/categories/remote-devops-sysadmin-jobs",
+    "/categories/remote-data-jobs",
+    "/categories/remote-product-jobs",
+    "/categories/remote-full-stack-programming-jobs",
 ]
 
 

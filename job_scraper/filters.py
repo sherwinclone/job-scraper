@@ -10,16 +10,30 @@ ROLE_KEYWORDS = [
     "資料工程", "數據工程", "資料分析",
 ]
 
-TIMEZONE_INCLUDE = [
+# Locations that mean "fully remote, worldwide".
+REMOTE_INCLUDE = [
     "worldwide", "anywhere", "global",
-    "asia", "apac", "utc+7", "utc+8", "utc+9",
-    "singapore", "japan", "australia", "taiwan", "hong kong", "korea",
-    "indonesia", "malaysia", "india", "vietnam", "thailand", "philippines",
+    "fully remote", "100% remote", "remote-first", "fully-remote",
+    "remote · global", "remote / global",
 ]
 
-TIMEZONE_EXCLUDE = [
-    "us only", "usa only", "americas only",
-    "eu only", "europe only", "uk only",
+# Taiwan-only is OK (Sherwin is in Taiwan); other country-only locks rejected.
+TAIWAN_ONLY = ["taiwan", "台灣", "台北", "taipei"]
+
+# Locations that disqualify the job: country/region locks, on-site, hybrid.
+LOCATION_EXCLUDE = [
+    "us only", "usa only", "united states only", "u.s. only",
+    "americas only", "north america only", "latam only", "south america only",
+    "eu only", "europe only", "european union only", "eea only",
+    "uk only", "united kingdom only", "ireland only",
+    "asia only", "apac only",
+    "canada only", "australia only", "anz only", "new zealand only",
+    "singapore only", "japan only", "hong kong only", "korea only",
+    "india only", "vietnam only", "thailand only", "philippines only",
+    # On-site / hybrid indicators
+    "on-site", "onsite", "on site",
+    "hybrid",
+    "in-office", "in office", "in-person", "in person",
 ]
 
 # Exclude junior/intern/low-level/unrelated titles
@@ -45,15 +59,30 @@ def matches_role(job: Job) -> bool:
     return any(kw in text for kw in ROLE_KEYWORDS)
 
 
-def matches_timezone(job: Job) -> bool:
+def matches_remote(job: Job) -> bool:
+    """Accept fully-remote (worldwide) jobs and Taiwan-only jobs.
+
+    Rejects region-locked listings (US-only, EU-only, etc. except Taiwan),
+    hybrid, and on-site listings.
+    """
     loc = (job.location or "").lower().strip()
     if not loc:
+        # No location info — let other filters decide.
         return True
-    if any(ex in loc for ex in TIMEZONE_EXCLUDE):
+    # Hard rejects: any explicit lock or non-remote signal.
+    if any(ex in loc for ex in LOCATION_EXCLUDE):
         return False
-    if any(inc in loc for inc in TIMEZONE_INCLUDE):
+    # Taiwan-only is allowed (Sherwin is local).
+    if any(tw in loc for tw in TAIWAN_ONLY):
         return True
-    return True
+    # Worldwide / global remote keywords accepted.
+    if any(inc in loc for inc in REMOTE_INCLUDE):
+        return True
+    # Plain "remote" (most boards tag this for fully-remote).
+    if "remote" in loc:
+        return True
+    # Specific city/country with no remote keyword → not fully remote.
+    return False
 
 
 def matches_seniority(job: Job) -> bool:
@@ -101,5 +130,5 @@ def matches_salary(job: Job) -> bool:
 def filter_jobs(jobs: list[Job]) -> list[Job]:
     return [
         j for j in jobs
-        if matches_role(j) and matches_timezone(j) and matches_seniority(j) and matches_salary(j)
+        if matches_role(j) and matches_remote(j) and matches_seniority(j) and matches_salary(j)
     ]

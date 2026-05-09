@@ -1,5 +1,5 @@
 from job_scraper.models import Job
-from job_scraper.filters import matches_role, matches_timezone, filter_jobs
+from job_scraper.filters import matches_role, matches_remote, filter_jobs
 
 
 def _job(title="Data Engineer", tags=None, location=None):
@@ -30,44 +30,92 @@ class TestMatchesRole:
         assert matches_role(_job("Engineer", tags=["databricks"]))
 
 
-class TestMatchesTimezone:
+class TestMatchesRemote:
+    # Accepted: worldwide / global remote
     def test_worldwide(self):
-        assert matches_timezone(_job(location="Worldwide"))
+        assert matches_remote(_job(location="Worldwide"))
 
     def test_anywhere(self):
-        assert matches_timezone(_job(location="Anywhere in the World"))
+        assert matches_remote(_job(location="Anywhere in the World"))
 
-    def test_asia(self):
-        assert matches_timezone(_job(location="Asia, Europe"))
+    def test_global(self):
+        assert matches_remote(_job(location="Global"))
 
+    def test_fully_remote(self):
+        assert matches_remote(_job(location="Fully Remote"))
+
+    def test_plain_remote(self):
+        assert matches_remote(_job(location="Remote"))
+
+    # Empty / unknown — let other filters decide
     def test_empty_location(self):
-        assert matches_timezone(_job(location=None))
+        assert matches_remote(_job(location=None))
 
     def test_empty_string_location(self):
-        assert matches_timezone(_job(location=""))
+        assert matches_remote(_job(location=""))
 
-    def test_us_only_excluded(self):
-        assert not matches_timezone(_job(location="US Only"))
+    # Taiwan-only is allowed exception (Sherwin is local)
+    def test_taiwan_only_allowed(self):
+        assert matches_remote(_job(location="Taiwan only"))
 
-    def test_europe_only_excluded(self):
-        assert not matches_timezone(_job(location="Europe Only"))
+    def test_taipei_allowed(self):
+        assert matches_remote(_job(location="Taipei, Taiwan"))
 
-    def test_specific_asia_country(self):
-        assert matches_timezone(_job(location="Singapore"))
+    def test_taiwan_chinese(self):
+        assert matches_remote(_job(location="台北"))
 
-    def test_americas_excluded(self):
-        assert not matches_timezone(_job(location="Americas Only"))
+    # Region-locked listings rejected
+    def test_us_only_rejected(self):
+        assert not matches_remote(_job(location="US Only"))
+
+    def test_usa_only_rejected(self):
+        assert not matches_remote(_job(location="USA only"))
+
+    def test_europe_only_rejected(self):
+        assert not matches_remote(_job(location="Europe Only"))
+
+    def test_uk_only_rejected(self):
+        assert not matches_remote(_job(location="UK only"))
+
+    def test_americas_only_rejected(self):
+        assert not matches_remote(_job(location="Americas only"))
+
+    def test_singapore_only_rejected(self):
+        assert not matches_remote(_job(location="Singapore only"))
+
+    def test_japan_only_rejected(self):
+        assert not matches_remote(_job(location="Japan only"))
+
+    # Specific city/country with no remote keyword → not fully remote
+    def test_specific_city_rejected(self):
+        assert not matches_remote(_job(location="Berlin, Germany"))
+
+    def test_specific_country_rejected(self):
+        assert not matches_remote(_job(location="Singapore"))
+
+    # Hybrid / on-site rejected
+    def test_hybrid_rejected(self):
+        assert not matches_remote(_job(location="Hybrid - London"))
+
+    def test_onsite_rejected(self):
+        assert not matches_remote(_job(location="On-site, NYC"))
+
+    def test_in_office_rejected(self):
+        assert not matches_remote(_job(location="In office, Berlin"))
 
 
 class TestFilterJobs:
     def test_filters_combined(self):
         jobs = [
-            _job("Data Engineer", location="Worldwide"),
-            _job("Marketing Manager", location="Worldwide"),
-            _job("Analytics Engineer", location="US Only"),
-            _job("Data Platform Engineer", location="Asia"),
+            _job("Data Engineer", location="Worldwide"),               # ✓
+            _job("Marketing Manager", location="Worldwide"),           # ✗ role
+            _job("Analytics Engineer", location="US Only"),            # ✗ region-locked
+            _job("Data Platform Engineer", location="Asia"),           # ✗ asia not in include
+            _job("Senior Data Engineer", location="Taiwan only"),      # ✓ Taiwan exception
+            _job("Data Scientist", location="Hybrid - Berlin"),        # ✗ hybrid
+            _job("Data Engineer", location="Remote"),                  # ✓ generic remote
         ]
         result = filter_jobs(jobs)
-        assert len(result) == 2
-        assert result[0].title == "Data Engineer"
-        assert result[1].title == "Data Platform Engineer"
+        assert len(result) == 3
+        titles = {j.title for j in result}
+        assert titles == {"Data Engineer", "Senior Data Engineer"}

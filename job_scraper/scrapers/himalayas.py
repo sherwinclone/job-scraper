@@ -7,7 +7,6 @@ from job_scraper.models import Job
 from job_scraper.scrapers.base import BaseScraper
 
 API_URL = "https://himalayas.app/jobs/api"
-ASIA_TIMEZONES = {7, 8, 8.75, 9, 9.5, 10, 10.5, 11, 12}
 MAX_SCAN = 5000  # scan up to 5000 jobs
 
 
@@ -40,7 +39,7 @@ class HimalayasScraper(BaseScraper):
             all_jobs.extend(parsed)
 
             if offset % 200 == 0:
-                print(f"  [himalayas] scanned {offset + len(raw_jobs)} jobs, {len(all_jobs)} Asia-friendly so far", file=sys.stderr)
+                print(f"  [himalayas] scanned {offset + len(raw_jobs)} jobs, {len(all_jobs)} parsed so far", file=sys.stderr)
 
             offset += limit
             time.sleep(0.3)
@@ -49,14 +48,9 @@ class HimalayasScraper(BaseScraper):
         return all_jobs
 
     def parse(self, data: list[dict]) -> list[Job]:
-        """Filter for Asia-timezone jobs only. Role filtering is done by filters.py."""
+        """Convert raw himalayas entries to Job objects. Filtering happens in filters.py."""
         jobs = []
         for entry in data:
-            tz = entry.get("timezoneRestrictions", [])
-            # Skip jobs that explicitly exclude Asia timezones
-            if tz and not any(t in ASIA_TIMEZONES for t in tz):
-                continue
-
             salary = self._format_salary(
                 entry.get("minSalary", 0),
                 entry.get("maxSalary", 0),
