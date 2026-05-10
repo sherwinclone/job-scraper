@@ -80,3 +80,24 @@ class TestStore:
         store.save_job(_job("t:1", title="Senior Data Engineer", company="Foodsmart"))
         store.save_job(_job("t:2", title="  Senior Data Engineer  ", company="foodsmart"))
         assert store.get_stats()["total_jobs"] == 1
+
+    def test_merge_from(self, tmp_path):
+        local = Store(tmp_path / "local.db")
+        local.save_job(_job("local:1", title="Local Only", company="A"))
+
+        remote = Store(tmp_path / "remote.db")
+        remote.save_job(_job("local:1", title="Local Only", company="A"))     # same id → skip
+        remote.save_job(_job("rem:2", title="New Remote Job", company="B"))   # new → insert
+        remote.save_job(_job("rem:3", title="local only", company="a"))       # canonical dup → skip
+
+        added = local.merge_from(tmp_path / "remote.db")
+        assert added == 1
+        assert local.get_stats()["total_jobs"] == 2
+
+    def test_merge_from_empty_remote(self, tmp_path):
+        local = Store(tmp_path / "local.db")
+        local.save_job(_job("local:1"))
+        Store(tmp_path / "remote.db")  # creates empty schema
+        added = local.merge_from(tmp_path / "remote.db")
+        assert added == 0
+        assert local.get_stats()["total_jobs"] == 1

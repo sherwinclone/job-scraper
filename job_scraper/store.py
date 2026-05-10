@@ -116,6 +116,43 @@ class Store:
             for r in rows
         ]
 
+    def merge_from(self, other_db_path: Path) -> int:
+        """Merge jobs from another SQLite jobs.db into this one.
+
+        Skips rows whose primary id OR canonical (platform, title, company)
+        already exist locally — same dedup contract as save_job. Returns the
+        number of rows actually inserted.
+        """
+        other = sqlite3.connect(other_db_path, timeout=10)
+        rows = other.execute(
+            "SELECT id, platform, title, company, url, tags, salary, location, "
+            "posted_at, scraped_at, notified FROM jobs"
+        ).fetchall()
+        other.close()
+
+        added = 0
+        conn = self._connect()
+        for r in rows:
+            id_, platform, title, company = r[0], r[1], r[2], r[3]
+            existing = conn.execute(
+                "SELECT 1 FROM jobs WHERE id = ? OR "
+                "(platform = ? AND lower(trim(title)) = lower(trim(?)) "
+                "AND lower(trim(company)) = lower(trim(?)))",
+                (id_, platform, title, company),
+            ).fetchone()
+            if existing:
+                continue
+            conn.execute(
+                "INSERT INTO jobs (id, platform, title, company, url, tags, "
+                "salary, location, posted_at, scraped_at, notified) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                r,
+            )
+            added += 1
+        conn.commit()
+        conn.close()
+        return added
+
     def get_stats(self) -> dict:
         conn = self._connect()
         total = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]

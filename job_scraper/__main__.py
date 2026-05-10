@@ -103,5 +103,50 @@ def send_notify(
     typer.echo(f"Sent {notified} jobs to Telegram.")
 
 
+@app.command()
+def pull(
+    db: Path = typer.Option(DEFAULT_DB, help="SQLite database path"),
+    workflow: str = typer.Option(
+        "daily-scrape.yml", help="Workflow file name on GitHub Actions"
+    ),
+):
+    """Download the latest jobs.db artifact from GitHub Actions and merge into local DB."""
+    import subprocess
+    import tempfile
+
+    typer.echo(f"Fetching latest successful run of {workflow}...")
+    run_id_proc = subprocess.run(
+        ["gh", "run", "list", "--workflow", workflow,
+         "--status", "success", "--limit", "1",
+         "--json", "databaseId", "--jq", ".[0].databaseId"],
+        capture_output=True, text=True,
+    )
+    if run_id_proc.returncode != 0:
+        typer.echo(f"gh run list failed: {run_id_proc.stderr.strip()}", err=True)
+        raise typer.Exit(1)
+    run_id = run_id_proc.stdout.strip()
+    if not run_id:
+        typer.echo("No successful workflow runs found.", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Downloading jobs-db artifact from run {run_id}...")
+    with tempfile.TemporaryDirectory() as tmp:
+        dl = subprocess.run(
+            ["gh", "run", "download", run_id, "--name", "jobs-db", "--dir", tmp],
+            capture_output=True, text=True,
+        )
+        if dl.returncode != 0:
+            typer.echo(f"gh run download failed: {dl.stderr.strip()}", err=True)
+            raise typer.Exit(1)
+        remote = Path(tmp) / "jobs.db"
+        if not remote.exists():
+            typer.echo(f"jobs.db not found in artifact for run {run_id}", err=True)
+            raise typer.Exit(1)
+        store = Store(db)
+        added = store.merge_from(remote)
+        total = store.get_stats()["total_jobs"]
+        typer.echo(f"Merged {added} new jobs from run {run_id}. Local DB now has {total} jobs.")
+
+
 if __name__ == "__main__":
     app()
