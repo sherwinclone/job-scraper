@@ -122,12 +122,30 @@ class TestMatchesRemote:
     def test_remote_from_japan_rejected(self):
         assert not matches_remote(_job(location="Remote from Japan"))
 
-    # Remote-friendly with city/state/country in parens (commas inside) → still accepted
-    def test_remote_friendly_with_full_address_accepted(self):
-        # bet365-style listing — Sherwin found this useful
-        assert matches_remote(_job(
+    # Strict mode: any country tag combined with remote → reject (visa needed)
+    def test_remote_with_united_states_rejected(self):
+        # bet365-style "Remote friendly | United States" — strict mode rejects
+        # because the listing implies US payroll / visa requirement.
+        assert not matches_remote(_job(
             location="Remote friendly (Denver, Colorado, United States) | United States"
         ))
+
+    def test_fully_remote_us_rejected(self):
+        # JustRemote-style "Fully Remote | United States"
+        assert not matches_remote(_job(location="Fully Remote | United States"))
+
+    def test_remote_us_parens_rejected(self):
+        assert not matches_remote(_job(location="Remote (US)"))
+
+    def test_remote_usa_parens_rejected(self):
+        assert not matches_remote(_job(location="Remote (USA)"))
+
+    def test_city_state_or_remote_rejected(self):
+        # Civitech-style: implies US-based hire even without "United States"
+        assert not matches_remote(_job(location="Austin, TX or Remote"))
+
+    def test_san_francisco_or_remote_rejected(self):
+        assert not matches_remote(_job(location="San Francisco, CA or Remote"))
 
 
 class TestFilterJobs:

@@ -3,12 +3,15 @@ import re
 from job_scraper.models import Job
 
 # Country/region tokens used to detect "country-locked remote" patterns
-# (e.g. "Japan - Remote", "Remote (Europe)") — those indicate the job is
-# only open to candidates in that country/region.
+# (e.g. "Japan - Remote", "Remote (Europe)", "Fully Remote | United States").
+# Anything in this list, when found alongside a "remote" keyword, marks the
+# job as country-locked and disqualifies it (Sherwin is in Taiwan and can't
+# work on US/EU/etc. payroll without a visa).
 _COUNTRY_TOKENS = (
     "europe", "asia", "apac", "latam", "emea", "americas",
     "north america", "south america",
-    "usa", "uk", "canada", "australia", "new zealand", "anz",
+    "united states", "u.s.", "usa", "uk", "u.k.",
+    "canada", "australia", "new zealand", "anz",
     "japan", "singapore", "hong kong", "korea", "china",
     "germany", "france", "spain", "italy", "netherlands", "ireland", "portugal",
     "brazil", "india", "mexico", "argentina", "chile",
@@ -20,15 +23,26 @@ _COUNTRY_PREFIX_REMOTE_RE = re.compile(
     rf"\b(?:{_COUNTRY_RE_FRAG})\s*-\s*remote\b",
     re.IGNORECASE,
 )
-# "Remote (Europe)" — region in parens, no commas inside (excludes
-# "Remote friendly (Denver, Colorado, United States)" because of the commas).
+# "Remote (Europe)" — region in parens, including bare codes like (US) / (UK)
 _REMOTE_REGION_PARENS_RE = re.compile(
-    rf"remote\s*[\(\[][^,)\]]*?(?:{_COUNTRY_RE_FRAG})[^,)\]]*?[\)\]]",
+    rf"remote\s*[\(\[][^)\]]*?(?:{_COUNTRY_RE_FRAG}|\bus\b|\buk\b)[^)\]]*?[\)\]]",
     re.IGNORECASE,
 )
 # "Remote in Germany" / "Remote from Asia"
 _REMOTE_IN_REGION_RE = re.compile(
     rf"\bremote\s+(?:in|from)\s+(?:{_COUNTRY_RE_FRAG})\b",
+    re.IGNORECASE,
+)
+# Strict mode: any country/region token (with word boundaries) — used to
+# disqualify "Remote + <country>" combos like "Fully Remote | United States".
+_COUNTRY_TOKEN_RE = re.compile(
+    rf"\b(?:{_COUNTRY_RE_FRAG}|us|uk)\b",
+    re.IGNORECASE,
+)
+# "City, ST or Remote" / "Austin, TX or Remote" — implies US (or local-country)
+# payroll, not truly worldwide. Catches state-level locks our country list misses.
+_CITY_OR_REMOTE_RE = re.compile(
+    r"\b[a-z]+,\s*\w+\s+or\s+remote\b",
     re.IGNORECASE,
 )
 
@@ -109,13 +123,23 @@ def matches_remote(job: Job) -> bool:
         return False
     if _REMOTE_IN_REGION_RE.search(loc):
         return False
-    # Taiwan-only is allowed (Sherwin is local).
+    # Taiwan-only is allowed (Sherwin is local) — checked BEFORE the strict
+    # country-token rule so "Taipei, Taiwan + Remote" still passes.
     if any(tw in loc for tw in TAIWAN_ONLY):
         return True
-    # Worldwide / global remote keywords accepted.
+    # Strict: a "remote" keyword combined with any country/region token
+    # (US, EU, Japan, Germany, ...) implies country-locked / visa-required.
+    # Catches "Fully Remote | United States", "Remote (US)", "Remote
+    # friendly (Denver, Colorado, United States)", etc.
+    if "remote" in loc and _COUNTRY_TOKEN_RE.search(loc):
+        return False
+    # "Austin, TX or Remote" — state code locked, even when no country word.
+    if _CITY_OR_REMOTE_RE.search(loc):
+        return False
+    # Worldwide / global remote keywords accepted (Worldwide / Anywhere / Global).
     if any(inc in loc for inc in REMOTE_INCLUDE):
         return True
-    # Plain "remote" (most boards tag this for fully-remote).
+    # Plain "remote" with no country signal → fully remote.
     if "remote" in loc:
         return True
     # Specific city/country with no remote keyword → not fully remote.
